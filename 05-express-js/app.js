@@ -2,19 +2,19 @@ const path = require("path");
 
 const express = require("express");
 const bodyParser = require("body-parser");
-const { engine } = require("express-handlebars");
+// const { engine } = require("express-handlebars");
 
 const app = express();
 
-app.engine(
-  "hbs",
-  engine({
-    extname: "hbs",
-    defaultLayout: "main-layout",
-    layoutsDir: "views/layouts",
-  })
-);
-app.set("view engine", "hbs");
+// app.engine(
+//   "hbs",
+//   engine({
+//     extname: "hbs",
+//     defaultLayout: "main-layout",
+//     layoutsDir: "views/layouts",
+//   })
+// );
+app.set("view engine", "ejs");
 app.set("views", "views");
 
 const adminData = require("./routes/admin");
