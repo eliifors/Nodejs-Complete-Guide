@@ -5,16 +5,10 @@ const bodyParser = require("body-parser");
 
 const errorController = require("./controllers/error");
 
+const mongoConnect = require("./util/database");
+
 const app = express();
 
-// app.engine(
-//   "hbs",
-//   engine({
-//     extname: "hbs",
-//     defaultLayout: "main-layout",
-//     layoutsDir: "views/layouts",
-//   })
-// );
 app.set("view engine", "ejs");
 app.set("views", "views");
 
@@ -29,4 +23,7 @@ app.use(shopRoutes);
 
 app.use(errorController.get404);
 
-app.listen(3000);
+mongoConnect((client) => {
+  console.log(client);
+  app.listen(3000);
+});
