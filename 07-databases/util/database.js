@@ -1,5 +1,8 @@
+const e = require("express");
 const mongodb = require("mongodb");
 const MongoClient = mongodb.MongoClient;
+
+let _db;
 
 const mongoConnect = (callback) => {
   MongoClient.connect(
@@ -8,11 +11,21 @@ const mongoConnect = (callback) => {
 
     .then((client) => {
       console.log("Connected to the database");
-      callback(client);
+      _db = client.db();
+      callback();
     })
     .catch((err) => {
-      console.error("Failed to connect to the database", err);
+      console.log("Failed to connect to the database", err);
+      throw err;
     });
 };
 
-module.exports = mongoConnect;
+const getDb = () => {
+  if (_db) {
+    return _db;
+  }
+  throw new Error("No database found");
+};
+
+exports.mongoConnect = mongoConnect;
+exports.getDb = getDb;
