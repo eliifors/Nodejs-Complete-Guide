@@ -1,7 +1,4 @@
-const mongodb = require("mongodb");
 const Product = require("../models/product");
-
-const ObjectId = mongodb.ObjectId;
 
 exports.getAddProduct = (req, res, next) => {
   res.render("admin/edit-product", {
@@ -35,6 +32,7 @@ exports.getEditProduct = (req, res, next) => {
   }
   const prodId = req.params.productId;
   Product.findById(prodId)
+    // Product.findById(prodId)
     .then((product) => {
       if (!product) {
         return res.redirect("/");
@@ -54,15 +52,14 @@ exports.postEditProduct = (req, res, next) => {
   const updatedTitle = req.body.title;
   const updatedImageUrl = req.body.imageUrl;
   const updatedPrice = req.body.price;
-  const updatedDesc = req.body.description;
+  const updatedDescription = req.body.description;
 
   const product = new Product(
     updatedTitle,
     updatedImageUrl,
     updatedPrice,
-
-    updatedDesc,
-    new ObjectId(prodId)
+    updatedDescription,
+    prodId
   );
   product
     .save()
@@ -85,9 +82,12 @@ exports.getProducts = (req, res, next) => {
     .catch((err) => console.log(err));
 };
 
-// exports.postDeleteProduct = (req, res, next) => {
-//   const prodId = req.body.productId;
-//   // Delete the product from the database
-//   Product.deleteById(prodId);
-//   res.redirect("/admin/products");
-// };
+exports.postDeleteProduct = (req, res, next) => {
+  const prodId = req.body.productId;
+  Product.deleteById(prodId)
+    .then(() => {
+      console.log("DESTROYED PRODUCT");
+      res.redirect("/admin/products");
+    })
+    .catch((err) => console.log(err));
+};
