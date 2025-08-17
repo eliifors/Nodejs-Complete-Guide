@@ -1,0 +1,25 @@
+/* .login-form {
+  width: 20rem;
+  max-width: 90%;
+  margin: auto;
+  display: block;
+}
+ */
+
+/* ---------- Page Layout ---------- */
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, sans-serif;
+  background: #ffffff; /* Beyaz arka plan */
+  color: #0f172a; /* Koyu yazı rengi */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
