@@ -99,7 +99,8 @@ button {
   box-shadow: var(--ring);
   background: rgba(2, 6, 23, 0.55);
 }
-.form-control input.invalid {
+.form-control input.invalid,
+.form-control textarea.invalid {
   border-color: var(--danger);
   background: rgba(239, 68, 68, 0.1);
 }
