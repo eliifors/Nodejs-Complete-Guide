@@ -99,6 +99,10 @@ button {
   box-shadow: var(--ring);
   background: rgba(2, 6, 23, 0.55);
 }
+.form-control input.invalid {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
 
 /* ---------- Button ---------- */
 
@@ -119,6 +123,7 @@ button {
 .btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(99, 102, 241, 0.45);
+  background-color: #70b849;
 }
 
 .btn:active {
