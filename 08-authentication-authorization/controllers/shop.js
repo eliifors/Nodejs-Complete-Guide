@@ -1,5 +1,7 @@
 const fs = require("fs");
 const path = require("path");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
 
 const PDFDocument = require("pdfkit");
 
@@ -133,23 +135,75 @@ exports.postCartDeleteProduct = (req, res, next) => {
     });
 };
 
-exports.getCheckout = (req, res, next) => {
+exports.getCheckout = async (req, res, next) => {
+  try {
+    const user = await req.user.populate("cart.items.productId");
+    const products = user.cart.items;
+    let total = 0;
+
+    const line_items = products.map(p => {
+      total += p.quantity * p.productId.price;
+      return {
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: p.productId.title,
+            description: p.productId.description,
+          },
+          unit_amount: Math.round(p.productId.price * 100)
+        },
+        quantity: p.quantity
+      };
+    });
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: line_items,
+      mode: "payment",
+      success_url: req.protocol + "://" + req.get("host") + "/checkout/success",
+      cancel_url: req.protocol + "://" + req.get("host") + "/checkout/cancel"
+    });
+
+    res.render("shop/checkout", {
+      path: "/checkout",
+      pageTitle: "Checkout",
+      products: products,
+      totalSum: total,
+      sessionId: session.id,
+      stripePublicKey: process.env.STRIPE_PUBLISHABLE_KEY
+    });
+  } catch (err) {
+    console.log("Stripe Checkout Error:", err);
+    const error = new Error(err);
+    error.httpStatusCode = 500;
+    return next(error);
+  }
+};
+
+exports.getCheckoutSuccess = (req, res, next) => {
   req.user
-    .populate("cart.items.productId")
-    .then((user) => {
-      const products = user.cart.items;
-      let total = 0;
-      products.forEach((p) => {
-        total += p.productId.price * p.quantity;
+    .populate('cart.items.productId')
+    .execPopulate()
+    .then(user => {
+      const products = user.cart.items.map(i => {
+        return { quantity: i.quantity, product: { ...i.productId._doc } };
       });
-      res.render("shop/checkout", {
-        path: "/checkout",
-        pageTitle: "Checkout",
-        products: products,
-        totalSum: total
+      const order = new Order({
+        user: {
+          email: req.user.email,
+          userId: req.user
+        },
+        products: products
       });
+      return order.save();
     })
-    .catch((err) => {
+    .then(result => {
+      return req.user.clearCart();
+    })
+    .then(() => {
+      res.redirect('/orders');
+    })
+    .catch(err => {
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
@@ -158,30 +212,28 @@ exports.getCheckout = (req, res, next) => {
 
 exports.postOrder = (req, res, next) => {
   req.user
-    .populate("cart.items.productId")
-    .then((user) => {
-      const products = user.cart.items.map((item) => {
-        return {
-          product: { ...item.productId._doc },
-          quantity: item.quantity,
-        };
+    .populate('cart.items.productId')
+    .execPopulate()
+    .then(user => {
+      const products = user.cart.items.map(i => {
+        return { quantity: i.quantity, product: { ...i.productId._doc } };
       });
       const order = new Order({
         user: {
           email: req.user.email,
-          userId: req.user._id,
+          userId: req.user
         },
-        products: products,
+        products: products
       });
       return order.save();
     })
-    .then((result) => {
+    .then(result => {
       return req.user.clearCart();
     })
     .then(() => {
-      res.redirect("/orders");
+      res.redirect('/orders');
     })
-    .catch((err) => {
+    .catch(err => {
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
@@ -189,61 +241,79 @@ exports.postOrder = (req, res, next) => {
 };
 
 exports.getOrders = (req, res, next) => {
-  Order.find({ "user.userId": req.user._id })
-    .then((orders) => {
-      res.render("shop/orders", {
-        path: "/orders",
-        pageTitle: "Your Orders",
-        orders: orders,
+  Order.find({ 'user.userId': req.user._id })
+    .then(orders => {
+      res.render('shop/orders', {
+        path: '/orders',
+        pageTitle: 'Your Orders',
+        orders: orders
       });
     })
-    .catch((err) => {
+    .catch(err => {
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
     });
 };
 
-exports.getInvoice = async (req, res, next) => {
-  try {
-    const orderId = req.params.orderId;
-    const order = await Order.findById(orderId).populate("products.product");
+exports.getInvoice = (req, res, next) => {
+  const orderId = req.params.orderId;
+  Order.findById(orderId)
+    .then(order => {
+      if (!order) {
+        return next(new Error('No order found.'));
+      }
+      if (order.user.userId.toString() !== req.user._id.toString()) {
+        return next(new Error('Unauthorized'));
+      }
+      const invoiceName = 'invoice-' + orderId + '.pdf';
+      const invoicePath = path.join('data', 'invoices', invoiceName);
 
-    if (!order) {
-      return next(new Error("No order found."));
-    }
-    if (order.user.userId.toString() !== req.user._id.toString()) {
-      return next(new Error("Unauthorized"));
-    }
+      const pdfDoc = new PDFDocument();
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        'inline; filename="' + invoiceName + '"'
+      );
+      pdfDoc.pipe(fs.createWriteStream(invoicePath));
+      pdfDoc.pipe(res);
 
-    const invoiceName = "invoice-" + orderId + ".pdf";
-    const invoicePath = path.join("data", "invoices", invoiceName);
+      pdfDoc.fontSize(26).text('Invoice', {
+        underline: true
+      });
+      pdfDoc.text('-----------------------');
+      let totalPrice = 0;
+      order.products.forEach(prod => {
+        totalPrice += prod.quantity * prod.product.price;
+        pdfDoc
+          .fontSize(14)
+          .text(
+            prod.product.title +
+              ' - ' +
+              prod.quantity +
+              ' x ' +
+              '$' +
+              prod.product.price
+          );
+      });
+      pdfDoc.text('---');
+      pdfDoc.fontSize(20).text('Total Price: $' + totalPrice);
 
-    const pdfDoc = new PDFDocument();
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="${invoiceName}"`);
+      pdfDoc.end();
+      // fs.readFile(invoicePath, (err, data) => {
+      //   if (err) {
+      //     return next(err);
+      //   }
+      //   res.setHeader('Content-Type', 'application/pdf');
+      //   res.setHeader(
+      //     'Content-Disposition',
+      //     'inline; filename="' + invoiceName + '"'
+      //   );
+      //   res.send(data);
+      // });
+      // const file = fs.createReadStream(invoicePath);
 
-    pdfDoc.pipe(fs.createWriteStream(invoicePath));
-    pdfDoc.pipe(res);
-
-    pdfDoc.fontSize(26).text("Invoice", { underline: true });
-    pdfDoc.text("-----------------------");
-
-    let totalPrice = 0;
-    order.products.forEach((prod) => {
-      totalPrice += prod.quantity * prod.product.price;
-      pdfDoc
-        .fontSize(14)
-        .text(
-          `${prod.product.title} - ${prod.quantity} x $${prod.product.price}`
-        );
-    });
-
-    pdfDoc.text("---");
-    pdfDoc.fontSize(20).text("Total Price: $" + totalPrice);
-
-    pdfDoc.end();
-  } catch (err) {
-    next(err);
-  }
+      // file.pipe(res);
+    })
+    .catch(err => next(err));
 };
