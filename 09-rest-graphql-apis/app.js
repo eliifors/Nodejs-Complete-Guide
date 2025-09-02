@@ -59,7 +59,11 @@ app.use((error, req, res, next) => {
 mongoose
 .connect('mongodb+srv://eliif:elif111121@cluster0.q9cqw4m.mongodb.net/messages?retryWrites=true&w=majority&appName=Cluster0')
   .then(() => {
-    app.listen(8080);
+    const server = app.listen(8080);
+    const io = require('./socket').init(server);
+    io.on('connection', socket => {
+      console.log('Client connected');
+    });
   })
   .catch(err => {
     console.log(err);
