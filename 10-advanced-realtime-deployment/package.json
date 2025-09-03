@@ -8,14 +8,23 @@
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon app.js",
-    "start-server": "node app.js"
+    "start": "cross-env NODE_ENV=production MONGO_USER=eliif MONGO_PASSWORD=elif11121 MONGO_DEFAULT_DATABASE=shop STRIPE_SECRET_KEY=sk_test_BMD9aaviqJzK0hlROg2KMRbD SENDGRID_API_KEY=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 node app.js",
+    "start-server": "node app.js",
+    "start:dev": "nodemon app.js"
   },
   "dependencies": {
     "body-parser": "^2.2.0",
+    "compression": "^1.8.1",
     "ejs": "^3.1.10",
     "express": "^5.1.0",
+    "express-session": "^1.18.2",
+    "helmet": "^8.1.0",
+    "mongoose": "^8.18.0",
+    "morgan": "^1.10.1",
     "nodemon": "^3.1.10",
     "stripe": "^18.5.0"
+  },
+  "devDependencies": {
+    "cross-env": "^10.0.0"
   }
 }
